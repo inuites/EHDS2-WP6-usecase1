@@ -1,0 +1,1320 @@
+---
+title: "Use case 1: Population uptake metrics: COVID-19 test positivity, vaccination and hospitalization."
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      out.width = "100%")
+
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(plotly)
+library(here)
+library(arrow)
+library(duckdb)
+library(DataExplorer)
+library(DT)
+library(purrr)
+library(formattable)
+library(validate)
+
+
+# What is the average number of PCR tests within the study period in the population by socioeconomic levels?. 
+# 
+# What is the average number of positive COVID-19 tests per individual (>18years old) in the population by socioeconomic levels? 
+# 
+# What is the ratio between individuals (>18years old) that received a complete vaccination schema (2 doses plus booster or 1 dose plus booster for J&J) against the SARS-CoV-2 compared to the total number of individuals (>18years old) at the moment (31th of December 2022) ? 
+# 
+# What is the ratio of individuals (>18years old) that have been hospitalized at least once due to COVID-19 compared to all individuals in the cohort (>18years old) since the 1st of January 2021 ? specify that they have to have a positive test 14 days prior to hospitalisation.
+# Stratification by vaccination status: What is the ratio of individuals (>18years old) that received a complete vaccination schema (to be defined) against the SARS-CoV-2 and that have been hospitalized at least once due to COVID-19 compared to all individuals (>18years old) fully vaccinated in the cohort since the 1st of January 2021 ? 
+
+```
+
+
+## EHDS2 Pilot Use Case 1 on Vulnerable Populations ##
+To be completed
+
+
+### LOCAL ANALYSES ###
+To be completed
+
+</br>
+</br>
+
+``` {r import , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+# variables
+now_date  <- as.Date("2021-01-01")
+date_from <- as.Date('2021-01-01')  
+date_to <- as.Date('2022-12-31')
+age_max <- 115
+age_min <- 18
+
+df <- read_delim("use_case_1_synthetic_data_10K_individuals.csv", trim_ws = TRUE)
+
+df <- df %>% filter(age_nm >= age_min, age_nm < age_max)
+
+dt_ind <- as.data.frame(introduce(df))
+
+# 
+# ### Description: directories
+# input_data_path <- here("input")
+# output_data_path <- here("output")
+# auxilary_database_name <- 'EHDS2-Pilot-WP6-UseCase-1.duckdb'
+# auxilary_database_path <- file.path(input_data_path, auxilary_database_name)
+# 
+# ### Description: function f_load_data
+# f_load_data <- function(create_db_tables=FALSE, load_data=FALSE) {
+#   
+#   if(create_db_tables) {
+#     
+#     ### Create necessary auxiliary tables ###
+#     
+#     createDB <- function() {
+#       
+#       tryCatch(
+#         {
+#           ## get database connection
+#           con = dbConnect(duckdb::duckdb(), dbdir=auxilary_database_path, read_only=FALSE)
+#           
+#           ## drop tables if the script has been executed previously
+#           dbExecute(con, "DROP TABLE IF EXISTS usecase1_data;")
+#           
+#           ## create 'cohort_data' table
+#           dbExecute(con, "CREATE OR REPLACE TABLE usecase1_data (
+#                   	person_id VARCHAR,
+#                   	sex_cd TINYINT,
+#                   	age_nm TINYINT,
+#                   	exitus_dt DATE,
+#                   	exitus_bl BOOLEAN,
+#                   	country_origin_cd VARCHAR,
+#                   	country_cd VARCHAR,
+#                   	residence_area_cd VARCHAR,
+#                   	education_level_cd VARCHAR,
+#                   	income_category_cd VARCHAR,
+#                   	migration_background_cd VARCHAR,
+#                   	household_type_cd VARCHAR,
+#                     hospi_due_to_covid_bl BOOLEAN,
+#                     test_positive_to_covid_nm TINYINT,
+#                     test_nm TINYINT,
+#                   	dose_1_brand_cd VARCHAR,
+#                   	dose_1_dt DATE,
+#                   	dose_2_brand_cd VARCHAR,
+#                   	dose_2_dt DATE,
+#                   	dose_3_brand_cd VARCHAR,
+#                   	dose_3_dt DATE,
+#                   	doses_nm TINYINT,
+#                   	fully_vaccinated_dt DATE,
+#                   	fully_vaccinated_bl BOOLEAN
+#           )")
+#         },
+#         finally={
+#           ## disconnect from database
+#           dbDisconnect(con, shutdown=TRUE)
+#         }
+#       )
+#     }
+#     
+#     createDB()
+#     
+#   }
+#   
+#   if(load_data) {
+#     
+#     ### Insert data into 'usecase1_data' table ###
+#     
+#     read_large_dataset <- function() {
+#       
+#       tryCatch(
+#         {
+#           ## get database connection
+#           con = dbConnect(duckdb::duckdb(), dbdir=auxilary_database_path, read_only=FALSE)
+#           
+#           ## open/read dataset 
+#           
+#           # See variable format common data model
+#           schema <- arrow::schema(
+#             field("person_id",string(),nullable=TRUE),
+#             field("sex_cd",int64(),nullable=TRUE),
+#             field("age_nm",int64(),nullable=TRUE),
+#             field("exitus_dt",date32(),nullable=TRUE), 
+#             field("exitus_bl",bool(),nullable=TRUE),
+#             field("country_origin_cd",string(),nullable=TRUE),
+#             field("country_cd",string(),nullable=TRUE),
+#             field("residence_area_cd",string(),nullable=TRUE),
+#             field("education_level_cd",string(),nullable=TRUE),
+#             field("income_category_cd",string(),nullable=TRUE),
+#             field("migration_background_cd",string(),nullable=TRUE),
+#             field("household_type_cd",string(),nullable=TRUE),
+#             field("hospi_due_to_covid_bl",bool(),nullable=TRUE),
+#             field("test_positive_to_covid_nm",int64(),nullable=TRUE),
+#             field("test_nm",double(),nullable=TRUE),
+#             field("dose_1_brand_cd",string(),nullable=TRUE),
+#             field("dose_1_dt",date32(),nullable=TRUE),
+#             field("dose_2_brand_cd",string(),nullable=TRUE),
+#             field("dose_2_dt",date32(),nullable=TRUE),
+#             field("dose_3_brand_cd",string(),nullable=TRUE),
+#             field("dose_3_dt",date32(),nullable=TRUE),
+#             field("doses_nm",double(),nullable=TRUE),
+#             field("fully_vaccinated_dt",date32(),nullable=TRUE),
+#             field("fully_vaccinated_bl",bool(),nullable=TRUE)
+#           )
+#           
+#           data_file <- list.files(paste0(input_data_path,"/"),pattern=".csv")
+#           file <- file.path(paste0(input_data_path,"/"),data_file)
+#           parse_options <- CsvParseOptions$create(delimiter = ",")
+#           convert_options <- CsvConvertOptions$create(true_values = c("True","true","TRUE"),
+#                                                       false_values = c("False","false","FALSE"),
+#                                                       null_values=c("","NA","None"),
+#                                                       strings_can_be_null=TRUE) 
+#           ddf <- arrow::read_csv_arrow(file,schema = schema,skip = 1L ,parse_options = parse_options, convert_options = convert_options , as_data_frame = FALSE )
+#           ddf <- ddf %>%
+#             mutate(flag_violating_val=FALSE,
+#                    flag_listwise_del=FALSE)
+#           
+#           ## register arrow dataset
+#           duckdb_register_arrow(conn = con, name = "usecase1_view", ddf)
+# 
+#           ## insert data into 'usecase1_data' table
+#           # If error -> print error end exit knit
+#           tryCatch({
+#             dbExecute(con, "INSERT INTO usecase1_data SELECT * FROM usecase1_view")
+#           }, error = function(err) {
+#             print(paste("MY ERROR:  ",err))
+#             print("Please check your input data")
+#             knit_exit()
+#           })
+#           
+#         },
+#         finally={
+#           ## disconnect from database
+#           dbDisconnect(con, shutdown=TRUE)
+#         }
+#       )
+#     }
+#     
+#     read_large_dataset()
+#   }
+#   
+# }
+
+
+# ## Description: load the data into memory
+# tryCatch(
+#   {
+#     con = dbConnect(duckdb::duckdb(), dbdir=auxilary_database_path, read_only=FALSE)
+#     df <- dbGetQuery(con,
+#     "CREATE TEMPORARY TABLE Temp AS SELECT * FROM usecase1_data;
+#     ALTER TABLE Temp DROP COLUMN flag_violating_val;
+#     ALTER TABLE Temp DROP COLUMN flag_listwise_del;
+#     SELECT * FROM Temp") 
+#   },
+#   finally={
+#     dbDisconnect(con, shutdown=TRUE)
+#   })
+
+# dt_ind <- as.data.frame(introduce(df))
+
+```
+
+## Overview {.tabset}
+
+This section provides an overview of your imported dataset. Dataset statistics, variable types, missing data profiles and potential alerts are shown below.
+
+### Dataset statistics
+
+```{r, dataset statistics, message=FALSE, warning=FALSE, error=FALSE}
+
+dt_stat <- dt_ind
+dt_stat$perc_missing_values <- 
+  paste0(round(100*dt_stat$total_missing_values/dt_stat$total_observations,1),"%")
+dt_stat$memory_usage <- utils:::format.object_size(dt_stat$memory_usage,"auto")
+dt_stat$rows <- formatC(dt_stat$rows, format="f", big.mark = " ", digits = 0)
+dt_stat$total_observations <- formatC(dt_stat$total_observations, format="f", big.mark = " ", digits = 0)
+dt_stat$total_missing_values <- formatC(dt_stat$total_missing_values, format="f", big.mark = " ", digits = 0)
+dt_stat <- t(dt_stat[,c("columns", "rows", "total_observations", "total_missing_values","perc_missing_values","memory_usage")])
+DT::datatable(dt_stat,
+              class = 'cell-border stripe',
+              colnames = "",
+              options = list(dom = 't'),
+              caption = htmltools::tags$caption(
+                style = "text-align: left",
+                ''),
+              rownames = c("Number of variables","Number of rows", "Total observation","Total missing cells", "Missing cells (%)", "Memory usage")) 
+
+```
+
+
+### Variables
+
+```{r, variables, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create table with basic column information (discrete, continuous, all missing columns)
+
+dt_var <- dt_ind
+dt_var <- t(dt_var[,c("discrete_columns","continuous_columns","all_missing_columns")])
+DT::datatable(dt_var,
+              class = 'cell-border stripe',
+              colnames = "",
+              options = list(dom = 't'),
+              caption = htmltools::tags$caption(
+                style = "text-align: left",
+                ''),
+              rownames = c("Discrete column","Continuous column","All missing column"))
+
+```
+
+```{r, classes, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create table with information on the variable classes
+
+dt_var_class <- as.data.frame(sapply(df, class))
+DT::datatable(dt_var_class,
+              class = 'cell-border stripe',
+              caption = htmltools::tags$caption(
+                style = "text-align: left",
+                ''),
+              colnames = c("Variable","Class"))
+
+```
+
+### Missing data profile
+
+```{r, missing data profile 1, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create table with missing data profile (feature/variable, nr missing, % missing)
+
+dt_prof <- profile_missing(df)
+DT::datatable(dt_prof,
+              class = 'cell-border stripe',
+              options = list(dom = 'ptl', 
+                             pageLegth = 50),
+              caption = htmltools::tags$caption(
+                style = "text-align: left",
+                ''),
+              rownames = NULL,
+              colnames=c("Feature","Number missing","Percentage missing")) %>%
+  formatPercentage("pct_missing",
+                   digits=1) %>%
+  formatStyle(
+    'pct_missing',
+    background = styleColorBar(dt_prof$pct_missing, 'steelblue'),
+    backgroundSize = '100% 90%',
+    backgroundRepeat = 'no-repeat',
+    backgroundPosition = 'center'
+  )
+
+```
+
+<br>
+
+```{r, missing data profile 2, results='hide', fig.show='hide', echo=FALSE, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create plot with missing data profile 
+
+pl <- ggplotly(plot_missing(df) + theme_minimal() + 
+  theme(axis.title.y=element_blank()))
+
+```
+
+```{r, missing data profile 3, message=FALSE, warning=FALSE, error=FALSE}
+  
+pl
+
+```
+
+### Alerts
+
+```{r, alerts, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create table with alerts when:
+# - A variable has a constant value ('Constant')
+# - A variable has more than 50% missing values ('Missing')
+# - A variable has all unique values ('Unique')
+
+dt_alert <- data.frame(matrix(NA, nrow = 0, ncol = 2))
+
+# Constant values
+for(i in colnames(df)) {
+  if((length(unique(df[,i]))==1 && !is.na(unique(df[,i])))) {
+    dt_alert <- rbind(dt_alert,c(paste0(i," has constant value ",unique(df[,i])),"Constant"))
+  }
+}
+
+# Missing values
+for(k in colnames(df)) {
+  n_miss <- length(df[which(is.na(df[,k])),k])
+  perc_miss <- n_miss/nrow(df)
+  if(perc_miss>0.5) {
+    dt_alert <- rbind(dt_alert,c(paste0(k," has ", n_miss, " (", round(100*perc_miss,1), "%) missing values"),"Missing"))
+  }
+}
+
+# Unique values
+for(h in colnames(df)) {
+  n_unique <- length(unique(df[,h]))
+  if(n_unique==nrow(df)) {
+    dt_alert <- rbind(dt_alert,c(paste0(h," has all unique values"),"Unique"))
+  }
+}
+
+colnames(dt_alert) <- c('V1','V2')
+formattable(dt_alert,
+                            align = c("l","c"),
+                            col.names = NULL,
+                            list(
+                                V2 = formatter("V1",
+                                        style = ~style(
+                                          display = "block", 
+                                          padding = "0 4px", 
+                                          `border-radius` = "4px", 
+                                          `background-color` = 
+                                              case_when(V2 == "Constant" ~ "#F4A460",
+                                                        V2 == "Missing" ~ "lightblue",
+                                                        V2 == "Unique" ~ "#66CDAA")))
+                            ))
+
+```
+
+### Duplicates
+
+```{r, duplicates, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create table with information of paients that appear more than once in the data
+
+dt_duplicates <- data.frame(matrix(NA, nrow = 0, ncol = 3))
+
+if(sum(duplicated(df$person_id))==0) {
+  dt_duplicates <- rbind(dt_duplicates,c("The variable 'person_id' has all unique values",paste0("Number of duplicate values: ", sum(duplicated(df$person_id))),"Unique"))
+} else {
+  dt_duplicates <- rbind(dt_duplicates,c("The variable 'person_id' does not have all unique values",paste0("Number of duplicate values: ", sum(duplicated(df$person_id))),"Not unique"))
+}
+
+colnames(dt_duplicates) <- c('V1','V2','V3')
+formattable(dt_duplicates,
+                            align = c("l","c"),
+                            col.names = NULL,
+                            list(
+                                V3 = formatter("V3",
+                                        style = ~style(
+                                          display = "block", 
+                                          padding = "0 4px", 
+                                          `border-radius` = "4px", 
+                                          `background-color` = 
+                                              case_when(V3 == "Unique" ~ "#66CDAA",
+                                                        V3 == "Not Unique" ~ "#FF4747")))
+                            ))
+
+```
+## {-}
+
+## Variables
+
+This section provides more detailed information per variable in the imported dataset.
+
+```{r, chunk, message=FALSE, warning=FALSE, error=FALSE, eval=FALSE}
+  
+htmltools::tagList(datatable(df))
+
+```
+
+```{r, individual variables, results='asis', message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: 
+# -> iterate over variables
+#    -> for every variable different statistics are shown in different panels:
+#        - panel 1: Overview
+#        - panel 2: Summary
+#        - panel 3: Categories
+#        - panel 4: Distribution
+
+df_class <-  as.data.frame(sapply(df, class))
+df_class <- as.data.frame(t(df_class))
+
+purrr::iwalk(colnames(df), ~ {
+  ## create a box for every variable
+  cat('::: box \n\n')
+  
+  ## within the box print the variable name 
+  cat('###', ., ' {style="color: blue; font-size: 12pt; font-weight: bold"} \n\n')
+ 
+  ## within the box print the variable class
+  cat('####### Class of the variable: ', class(df[, ]), ' {style="color: #7F7F7F; font-size: 10pt"} \n')
+
+  ## within the box create a tabset panel
+  cat('## {.tabset}\n\n')
+  
+  ## panel 1 (Overview: nr and % distinct values, nr and % missing values)
+  cat('### Overview \n')
+  
+  df_sub <- data.frame(matrix(NA, nrow = 4, ncol = 2))
+  df_sub[,1] <- c("Distinct","Distinct (%)","Missing","Missing (%)")
+  # df_sub[1,2] <- length(unique(df[,.]))
+  df_sub[1,2] <- nrow(unique(df[,.]))
+  # df_sub[2,2] <- round(100*length(unique(df[,.]))/nrow(df),3)
+  df_sub[2,2] <- round(100*nrow(unique(df[,.]))/nrow(df),3)
+  df_sub[3,2] <- sum(is.na(df[,.]))
+  df_sub[4,2] <- round(100*sum(is.na(df[,.]))/nrow(df),3)
+  print(htmltools::tagList(DT::datatable(df_sub,
+                                         rownames = NULL,
+                                         class = 'cell-border stripe',
+                                         colnames = NULL,
+                                         options = list(dom = 't'),
+                                         caption = htmltools::tags$caption(
+                                            style = "text-align: left")
+                                         )))
+  
+  ## panel 2 (Summary: summary information of the variable)
+  # cat('### Summary \n')
+  # 
+  # if(class(df[,.])!="Date") {
+  #   c_sum <- as.data.frame(unclass(summary(df[,.])))
+  #   colnames(c_sum) <- c(.)
+  #   print(htmltools::tagList(DT::datatable(c_sum,
+  #                                          options = list(dom = 't'),
+  #                                          caption = htmltools::tags$caption(
+  #                                             style = "text-align: left"))))
+  # } else {
+  #   c_sum <- data.frame(`Date_range`= paste0(min(df[,.],na.rm=TRUE)," - ", max(df[,.],na.rm=TRUE)))
+  #   rownames(c_sum) <- c(.)
+  #   print(htmltools::tagList(DT::datatable(c_sum,
+  #                                          options = list(dom = 't'),
+  #                                          caption = htmltools::tags$caption(
+  #                                             style = "text-align: left"))))
+  # }
+  # 
+  # 
+  # 
+  ## panel 3 (Categories: count and frequency of every distinct value of the variable (if less than 100 distinct values))
+  cat('### Categories \n')
+
+  if(nrow(unique(df[,.]))<100) {
+    df_values <- as.data.frame(table(df[,.],useNA = 'always'))
+    df_values$Freq_perc <- round(100*df_values$Freq/nrow(df),3)
+    df_values$Freq_perc <- df_values$Freq/nrow(df)
+    print(htmltools::tagList(DT::datatable(df_values,
+                                           rownames = NULL,
+                                           class = 'cell-border stripe',
+                                           colnames = c("Value","Count","Frequency (%)"),
+                                           caption = htmltools::tags$caption(
+                                              style = "text-align: left")
+                                           ) %>%
+                                          formatPercentage("Freq_perc",
+                                                       digits=1) %>%
+                                          formatStyle(
+                                            'Freq_perc',
+                                            background = styleColorBar(c(0,1), 'steelblue'),
+                                            backgroundSize = '98% 88%%',
+                                            backgroundRepeat = 'no-repeat',
+                                            backgroundPosition = 'center'
+                                          )))
+  } else {
+    cat('More than 100 distinct values \n\n')
+  } 
+    
+  cat('\n')
+
+  ## panel 4 (Distribution: distribution of the variable) 
+  cat('### Distribution \n\n')
+  
+  if((class(df[,.])=="character") && (nrow(unique(df[,.]))>=100)) {
+    
+    cat('More than 100 distinct values \n\n')
+    
+  } else if(class(df[,.])=="character" || class(df[,.])=="logical") {
+    
+    pl_dist <- ggplot(df, aes_string(x = .)) +
+      geom_bar(fill="steelblue") +
+      theme_minimal() +
+      theme(axis.title.y=element_blank())
+    print(htmltools::tagList(ggplotly(pl_dist)))
+    
+  } else if(class(df[,.])=="integer" || class(df[,.])=="Date") {
+    
+    pl_dist <- ggplot(df, aes_string(x = .)) +
+              geom_histogram(fill="steelblue", color="black") +
+              theme_minimal() + 
+              theme(axis.title.y=element_blank())
+    print(htmltools::tagList(ggplotly(pl_dist)))
+  }
+
+  cat('## {-} \n\n')
+  cat('::: \n\n')
+  
+})
+
+
+```
+
+
+
+
+
+## Compliance with the Common Data Model specification {.tabset}
+
+We check whether the imported dataset complies with the data model specification (<https://docs.google.com/spreadsheets/d/1Eva2ucg_M0WaDkCaF7qfBxk2DwTlUac9gKuP3xck4rw/edit#gid=0>).
+
+To comply with the data model, the dataset must pass a number of validation rules. The data are tested against this set of validation rules and results from this validation process are summarized.
+
+```{r, validation rules, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: specification of validation rules and confrontation of the data with these validation rules
+
+validation <- function(data) {
+  
+  ## specify validation rules
+  rules <- validator(
+    is.na(age_nm) | age_nm >= 18 & age_nm <=115,
+    is.na(sex_cd) | sex_cd %in% c(0,1,2,9),
+    is.na(education_level_cd) | education_level_cd %in% c("Low","Middle","High"),
+    is.na(income_category_cd) | income_category_cd %in% c("Low","Middle","High"),
+    is.na(migration_background_cd) | migration_background_cd %in% c("NATIVE","EU","NON-EU","PAR","NA"),
+    is.na(household_type_cd) | household_type_cd %in% c("ALONE","COUPLE","COUPLE_CHILD","LONE","EXTENDED", "OTHER", "NA"),
+    is.na(hospi_due_to_covid_bl) | hospi_due_to_covid_bl %in% c(TRUE, FALSE),
+    is.na(test_positive_to_covid_nm) | test_positive_to_covid_nm >= 0 & test_positive_to_covid_nm <= 50,
+    is.na(test_nm) | test_nm >= 0 & test_nm <= 50,
+    is.na(dose_1_brand_cd) | dose_1_brand_cd %in% c("BP","MD","JJ","AZ","NV"),
+    is.na(dose_2_brand_cd) | dose_2_brand_cd %in% c("BP","MD","JJ","AZ","NV"),
+    is.na(doses_nm) | doses_nm >= 0 & doses_nm <= 10,
+
+    (is.na(dose_1_dt) & is.na(dose_2_dt)) | is.na(dose_2_dt) |
+      !is.na(dose_1_dt) & !is.na(dose_2_dt) & 
+      (dose_1_dt < dose_2_dt),
+    (is.na(dose_2_dt) & is.na(dose_3_dt)) | is.na(dose_3_dt) |
+      !is.na(dose_2_dt) & !is.na(dose_3_dt) & 
+      (dose_2_dt < dose_3_dt),
+    is.na(fully_vaccinated_dt) | is.na(exitus_dt) |
+      !is.na(fully_vaccinated_dt) & !is.na(exitus_dt) & 
+      fully_vaccinated_dt <= exitus_dt,
+    
+    (!is.na(dose_1_dt) & !is.na(dose_2_dt) & !is.na(dose_3_dt) & doses_nm>=3) | 
+        (!is.na(dose_1_dt) & !is.na(dose_2_dt) & is.na(dose_3_dt) & doses_nm==2) |
+        (!is.na(dose_1_dt) & is.na(dose_2_dt) & is.na(dose_3_dt) & doses_nm==1) | 
+        (is.na(dose_1_dt) & is.na(dose_2_dt) & is.na(dose_3_dt) & doses_nm==0),
+    is.na(dose_1_dt) | (!is.na(dose_1_dt) & !is.na(dose_1_brand_cd)),
+    is.na(dose_2_dt) | (!is.na(dose_2_dt) & !is.na(dose_2_brand_cd) &
+                        !is.na(dose_1_dt) & !is.na(dose_1_brand_cd)),
+    is.na(dose_3_dt) | (!is.na(dose_3_dt) & !is.na(dose_3_brand_cd) &
+                        !is.na(dose_2_dt) & !is.na(dose_2_brand_cd) &
+                        !is.na(dose_1_dt) & !is.na(dose_1_brand_cd)),
+    (dose_1_brand_cd=="JJ" & !is.na(dose_1_dt) & !is.na(fully_vaccinated_dt) & fully_vaccinated_bl==TRUE) | 
+      (dose_1_brand_cd!="JJ" & !is.na(dose_2_dt) & !is.na(fully_vaccinated_dt) & fully_vaccinated_bl==TRUE) | 
+      (is.na(dose_1_brand_cd) & is.na(fully_vaccinated_dt) & fully_vaccinated_bl==FALSE) |
+      (dose_1_brand_cd!="JJ" & is.na(dose_2_dt) & is.na(fully_vaccinated_dt) & fully_vaccinated_bl==FALSE)
+  )
+  
+  ## confront the data with the validation rules
+  out <- confront(data,rules)
+  return(out)
+}
+
+out <- validation(df)
+summary_validation_tmp <- summary(out)
+
+```
+
+##### Validation table
+
+```{r, validation table, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create a table with a summary of the validation results
+summary_validation <- summary_validation_tmp
+summary_validation$perc_fails <- paste0(round(100*summary_validation$fails/summary_validation$items,2),'%')
+summary_validation$perc_missing <- paste0(round(100*summary_validation$nNA/summary_validation$items,2),'%')
+summary_validation$perc_missing_num <- 100*summary_validation$nNA/summary_validation$items
+summary_validation <- summary_validation[,c("expression","name", "items","passes","fails","perc_fails","nNA","perc_missing", "error","warning","perc_missing_num")]
+colnames(summary_validation) <- c("Validation rule","Name rule","Items","Passes","Fails","Percentage of fails","Number of NAs","Percentage of NAs","Error","Warning","perc_missing_num")
+formattable(summary_validation,
+            align = c("l","c","c","c","c","c","c","c","c","c","c"),
+            list(
+              perc_missing_num = FALSE,
+              Error = formatter("Error",
+                style = ~style(display = "block", 
+                                padding = "0 4px", 
+                                `border-radius` = "4px", 
+                                `background-color` = case_when(Error==TRUE ~"#F4A460"))),
+              Warning = formatter("Warning",
+                style = ~style(display = "block", 
+                                padding = "0 4px", 
+                                `border-radius` = "4px", 
+                                `background-color` = case_when(Warning==TRUE ~"#F4A460"))),
+              `Percentage of NAs` = formatter("Percentage of NAs",
+                style = ~style(display = "block", 
+                                padding = "0 4px", 
+                                `border-radius` = "4px", 
+                                `background-color` = 
+                                case_when(perc_missing_num > 2.5 ~ "#F4A460"))),
+              Fails = formatter("Fails",
+                style = ~style(display = "block", 
+                                padding = "0 4px", 
+                                `border-radius` = "4px", 
+                                `background-color` = case_when(Fails > 0 ~ "#F4A460")))
+))
+
+```
+
+##### Validation plot
+
+The vertical bars in the validation plot indicate the percentage of records 'Passing', 'Failing' and 'Missing'
+
+```{r, validation plot 1, results='hide', fig.show='hide', message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: create interactive validation plot
+
+pl <- summary_validation %>%
+  mutate(perc_fails=Fails/Items) %>%
+  mutate(perc_passes=Passes/Items) %>%
+  mutate(perc_missing=`Number of NAs`/Items) %>%
+  select(c(`Name rule`,perc_fails,perc_passes,perc_missing)) %>%
+  gather(name, value, perc_fails:perc_missing) %>%
+  mutate(name=case_when(
+    name=="perc_fails" ~ "Fails",
+    name=="perc_passes" ~ "Passes",
+    name=="perc_missing" ~ "Missing"
+  )) %>%
+  mutate(name=factor(name,levels=c("Fails","Passes","Missing"))) %>%
+  ggplot(aes(x=`Name rule`,y=value,fill=name,order=name)) +
+    geom_col(position = position_stack(reverse = TRUE)) +
+    scale_y_continuous(labels=scales::percent) +
+    theme_minimal() +
+    theme(axis.title.x =element_blank(),
+          axis.title.y = element_blank(),
+          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+          legend.title = element_blank()) +
+    scale_fill_manual(
+      name ="",
+      values = c("Fails" = "red",
+              "Passes" = "#4C9900",
+              "Missing" = "grey"),
+      breaks=c("Fails","Passes","Missing")) 
+ply <- ggplotly(pl)
+
+```
+
+```{r, validation plot 2, message=FALSE, warning=FALSE, error=FALSE}
+
+ply
+
+```
+## {-}
+
+## Non-compliance with the Common Data Model specification
+
+The set of validation rules are considered 'essential' not to be violated to be considered for the subsequent analysis. A logical variable *flag_violation_val* is created in the cohort_data table in the BY-COVID-WP5-BaselineUseCase-VE.duckdb database and set to TRUE when at least one of the validation rules in the pre-specified set is violated (otherwise this variable is set to FALSE).
+
+```{r, violating essential rules, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: select patient ids of records violating at least one of the 'essential' validation rules
+
+tmp_viol <- data.frame(person_id=violating(df,out)[,"person_id"])
+
+```
+
+
+
+
+## missing values
+
+
+
+```{r, variable status 1, message=FALSE, warning=FALSE, error=FALSE}
+
+## Description: variables indicated as required in the data model
+required_v <- 
+  c("person_id","sex_cd","age_nm","exitus_bl","country_origin_cd",
+    "country_cd","education_level_cd","income_category_cd","migration_background_cd",
+    "household_type_cd","hospi_due_to_covid_bl","test_positive_to_covid_nm",
+    "test_nm","dose_1_brand_cd","dose_1_dt","dose_2_brand_cd","dose_2_dt","doses_nm","fully_vaccinated_bl")
+
+
+# Remove rows with missing values in specified columns
+df_clean <- df[complete.cases(df[, required_v]), ]
+
+deleted_rows <- sapply(required_v, function(col) sum(is.na(df[, col])))
+
+# Display the results
+deleted_rows
+
+
+```
+
+
+
+
+
+### LOCAL ANALYSES ###
+To be completed
+
+</br>
+</br>
+
+``` {r rq1_code , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+# variables
+now_date  <- as.Date("2021-01-01")
+date_from <- as.Date('2021-01-01')  
+date_to <- as.Date('2022-12-31')
+age_max <- 115
+age_min <- 18
+
+individuals_nm <- count(df_clean)
+
+#RQ1
+rq1_educ_aggreg <- df_clean %>% 
+  group_by(education_level_cd) %>% summarize(PCR_tests=test_nm)
+
+rq1_income_aggreg <- df_clean %>% 
+  group_by(income_category_cd) %>% summarize(PCR_tests=test_nm)
+
+rq1_migration_aggreg <- df_clean %>% 
+  group_by(migration_background_cd) %>% summarize(PCR_tests=test_nm)
+
+rq1_household_aggreg <- df_clean %>% 
+  group_by(household_type_cd) %>% summarize(PCR_tests=test_nm)
+
+#RQ2
+rq2_educ_aggreg <- df_clean %>% 
+  group_by(education_level_cd) %>% summarize(Positive_PCR_tests=test_positive_to_covid_nm)
+
+rq2_income_aggreg <- df_clean %>% 
+  group_by(income_category_cd) %>% summarize(Positive_PCR_tests=test_positive_to_covid_nm)
+
+rq2_migration_aggreg <- df_clean %>% 
+  group_by(migration_background_cd) %>% summarize(Positive_PCR_tests=test_positive_to_covid_nm)
+
+rq2_household_aggreg <- df_clean %>% 
+  group_by(household_type_cd) %>% summarize(Positive_PCR_tests=test_positive_to_covid_nm)
+
+#rq3
+
+rq3_vaccination_status <- df_clean %>% 
+  mutate(fully_vaccinated = case_when(
+    dose_1_brand_cd %in% c('BP', 'MD', 'AZ', 'NV') & 
+      dose_2_brand_cd %in% c('BP', 'MD', 'AZ', 'NV') &
+      dose_3_brand_cd %in% c('BP', 'MD', 'AZ', 'NV') ~ TRUE,
+    dose_1_brand_cd == 'JJ' & 
+      dose_2_brand_cd == 'JJ' ~ TRUE, .default = FALSE))
+
+rq3_educ_aggreg <- rq3_vaccination_status %>%
+  group_by(education_level_cd, fully_vaccinated) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(fully_vaccinated == TRUE)
+
+rq3_income_aggreg <- rq3_vaccination_status %>%
+  group_by(income_category_cd, fully_vaccinated) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(fully_vaccinated == TRUE)
+
+rq3_migration_aggreg <- rq3_vaccination_status %>%
+  group_by(migration_background_cd, fully_vaccinated) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(fully_vaccinated == TRUE)
+
+rq3_household_aggreg <- rq3_vaccination_status %>%
+  group_by(household_type_cd, fully_vaccinated) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(fully_vaccinated == TRUE)
+
+#rq4
+
+rq4_educ_aggreg <- rq3_vaccination_status %>% 
+  group_by(education_level_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+rq4_income_aggreg <- rq3_vaccination_status %>% 
+  group_by(income_category_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+rq4_migration_aggreg <- rq3_vaccination_status %>% 
+  group_by(migration_background_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+rq4_household_aggreg <- rq3_vaccination_status %>% 
+  group_by(household_type_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+individuals_vaccinated_nm <- count(filter(rq3_vaccination_status, fully_vaccinated == TRUE))
+
+rq4_vaccinated_hospi_due_to_covid <- filter(rq3_vaccination_status, fully_vaccinated == TRUE) %>% 
+  group_by(hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE))
+
+rq4b_educ_aggreg <- filter(rq3_vaccination_status, fully_vaccinated == TRUE) %>% 
+  group_by(education_level_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_vaccinated_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+rq4b_income_aggreg <- filter(rq3_vaccination_status, fully_vaccinated == TRUE) %>% 
+  group_by(income_category_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_vaccinated_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+rq4b_migration_aggreg <- filter(rq3_vaccination_status, fully_vaccinated == TRUE) %>% 
+  group_by(migration_background_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_vaccinated_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+rq4b_household_aggreg <- filter(rq3_vaccination_status, fully_vaccinated == TRUE) %>% 
+  group_by(household_type_cd, hospi_due_to_covid_bl) %>% summarise(individuals = sum(is.na(person_id) == FALSE) / individuals_vaccinated_nm) %>% filter(hospi_due_to_covid_bl == TRUE)
+
+
+fill = c("#FFCC00", "#336699", "#CC0033")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Research question #1
+
+Average number of PCR tests within the study period in the population by socioeconomic levels
+
+</br>
+</br>
+
+```{r plot1 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#                     Mean PCR tests per education level                    #
+#############################################################################
+
+p1 <- ggplot(rq1_educ_aggreg, aes(x = education_level_cd, y = PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Education level", y = "COVID-19 PCR tests") +
+  ggtitle("Education levels") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10)) 
+
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot2 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#                     Mean PCR tests per income category                    #
+#############################################################################
+
+p1 <- ggplot(rq1_income_aggreg, aes(x = income_category_cd, y = PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Income category", y = "COVID-19 PCR tests") +
+  ggtitle("Income categories") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10)) 
+
+
+ggplotly(p1)
+
+
+```
+
+
+</br>
+
+```{r plot3 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#                     Mean PCR tests per migration backgroung                #
+#############################################################################
+
+p1 <- ggplot(rq1_migration_aggreg, aes(x = migration_background_cd, y = PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Migration background", y = "COVID-19 PCR tests") +
+  ggtitle("Migration background") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10))  
+
+
+ggplotly(p1)
+  
+
+```
+
+
+</br>
+
+```{r plot4 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#                     Mean PCR tests per household_type                     #
+#############################################################################
+
+p1 <- ggplot(rq1_household_aggreg, aes(x = household_type_cd, y = PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Household type", y = "COVID-19 PCR tests") +
+  ggtitle("Household types") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10)) 
+
+
+ggplotly(p1)
+
+```
+
+## Research question #2
+
+Average number of positive COVID-19 tests per individual in the population by socioeconomic levels
+
+</br>
+</br>
+
+```{r plot5 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Mean Positive PCR tests per education level                    #
+#############################################################################
+
+p1 <- ggplot(rq2_educ_aggreg, aes(x = education_level_cd, y = Positive_PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Education level", y = "Positive COVID-19 PCR tests") +
+  ggtitle("Education levels") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10)) 
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot6 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Mean Positive PCR tests per income category                    #
+#############################################################################
+
+p1 <- ggplot(rq2_income_aggreg, aes(x = income_category_cd, y = Positive_PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Income category", y = "COVID-19 PCR tests") +
+  ggtitle("Income categories") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10)) 
+
+ggplotly(p1)
+  
+
+```
+
+
+</br>
+
+```{r plot7 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Mean Positive PCR tests per migration backroung                #
+#############################################################################
+
+p1 <- ggplot(rq2_migration_aggreg, aes(x = migration_background_cd, y = Positive_PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Migration background", y = "COVID-19 PCR tests") +
+  ggtitle("Migration background") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10))
+
+ggplotly(p1)
+  
+
+```
+
+
+</br>
+
+```{r plot8 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Mean Positive PCR tests per household_type                     #
+#############################################################################
+
+p1 <- ggplot(rq2_household_aggreg, aes(x = household_type_cd, y = Positive_PCR_tests)) +
+  geom_boxplot(fill = "#FFCC00", width = 0.6, outlier.shape = NA) +
+  ylim(0, 6) +
+  labs(x = "Household type", y = "COVID-19 PCR tests") +
+  ggtitle("Household types") +  
+  theme_minimal() +
+  theme(plot.title = element_text(size = 12, face = "bold"),
+        axis.title = element_text(size = 12),  
+        axis.text = element_text(size = 10)) 
+
+ggplotly(p1)
+
+```
+
+## Research question #3
+
+Ratio between individuals that received a complete vaccination schema against the SARS-CoV-2 compared to the total number of individuals at the moment (31th of December 2022)
+
+</br>
+</br>
+
+```{r plot9 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq3_educ_aggreg, aes(x=education_level_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Education levels') +
+  xlab('Education levels') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot10 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq3_income_aggreg, aes(x=income_category_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Income categories') +
+  xlab('Income categories') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+
+</br>
+
+```{r plot11 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq3_migration_aggreg, aes(x=migration_background_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Migration background') +
+  xlab('Migration background') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot12 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq3_household_aggreg, aes(x=household_type_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Household types') +
+  xlab('Household types') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+## Research question #4a
+
+Ratio of individuals that have been hospitalized at least once due to COVID-19 compared to all individuals in the cohort since the 1st of January 2021 
+
+</br>
+</br>
+
+```{r plot13 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq4_educ_aggreg, aes(x=education_level_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Education levels') +
+  xlab('Education levels') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot14 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq4_income_aggreg, aes(x=income_category_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Income categories') +
+  xlab('Income categories') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+
+</br>
+
+```{r plot15 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq4_migration_aggreg, aes(x=migration_background_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Migration background') +
+  xlab('Migration background') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot16 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#            Ration between vaccinated and unvaccinated                     #
+#############################################################################
+
+p1 <- ggplot(rq4_household_aggreg, aes(x=household_type_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Household types') +
+  xlab('Household types') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+## Research question #4b
+
+Ratio of individuals that received a complete vaccination schema against the SARS-CoV-2 and that have been hospitalized at least once due to COVID-19 compared to all individuals fully vaccinated in the cohort since the 1st of January 2021
+
+</br>
+</br>
+
+## to complete
+
+```{r plot17 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#        Ration between hospi vs non hospi in vaccinated population         #
+#############################################################################
+
+p1 <- ggplot(rq4b_educ_aggreg, aes(x=education_level_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Education levels') +
+  xlab('Education levels') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot18 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#        Ration between hospi vs non hospi in vaccinated population         #
+#############################################################################
+
+p1 <- ggplot(rq4b_income_aggreg, aes(x=income_category_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Income categories') +
+  xlab('Income categories') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+
+</br>
+
+```{r plot19 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#        Ration between hospi vs non hospi in vaccinated population         #
+#############################################################################
+
+p1 <- ggplot(rq4b_migration_aggreg, aes(x=migration_background_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Migration background') +
+  xlab('Migration background') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
+
+</br>
+
+```{r plot20 , message=FALSE, echo=FALSE, warning=FALSE, error=FALSE}
+
+#############################################################################
+#        Ration between hospi vs non hospi in vaccinated population         #
+#############################################################################
+
+p1 <- ggplot(rq4b_household_aggreg, aes(x=household_type_cd, y=individuals$n)) +
+  geom_bar(position='dodge', stat='identity') +
+  ggtitle('Household types') +
+  xlab('Household types') +
+  ylab('Ratio of individuals') +
+  scale_fill_manual('Fully Vaccinated', values=c('coral2','steelblue'))
+
+ggplotly(p1)
+
+
+```
