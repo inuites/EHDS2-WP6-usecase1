@@ -1,4 +1,4 @@
-packages <- c("dplyr","arrow","validate","DataExplorer","DT","purrr","dlookr","survminer",
+packages <- c("tidyverse", "lubricate", "dplyr","arrow","validate","DataExplorer","DT","purrr","dlookr","survminer",
        "quarto","ggplot2","plotly","scales","formattable","naniar","duckdb","DBI","here",
        "grDevices","visdat","mice","tidyr","shiny","consort","parallel","MatchIt",
        "survival","table1","tab","forestmodel","gtsummary","survRM2")
